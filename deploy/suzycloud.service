@@ -10,7 +10,7 @@ Group=suzy
 WorkingDirectory=/home/suzy/SuzyCloud
 Environment=PATH=/home/suzy/SuzyCloud/venv/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-/home/suzy/.suzycloud/.env
-ExecStart=/home/suzy/SuzyCloud/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1
+ExecStart=/home/suzy/SuzyCloud/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8100 --workers 1
 Restart=always
 RestartSec=5
 StandardOutput=journal

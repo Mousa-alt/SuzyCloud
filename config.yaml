@@ -2,7 +2,7 @@
 # Per-persona config lives in personas/{key}/config.yaml
 
 webhook:
-  port: 8000
+  port: 8100
 
 batching:
   window_seconds: 5.0
