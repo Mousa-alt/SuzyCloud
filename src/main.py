@@ -11,14 +11,11 @@ Message flow:
 import asyncio
 import hashlib
 import hmac
-import json
 import logging
 import os
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from pathlib import Path
-
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -34,7 +31,7 @@ from src.persona import (
 )
 from src.soul_loader import load_soul_context, load_memory_refresh
 from src.batcher import MessageBatcher, merge_batched_messages
-from src import waha as waha_module
+from src import waha
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +40,6 @@ os.environ.pop("CLAUDECODE", None)
 
 # --- Globals ---
 _batcher: MessageBatcher | None = None
-_waha: waha_module.WahaClient | None = None
 
 # Rate limiting
 _rate_windows: dict[str, list[float]] = defaultdict(list)
@@ -66,16 +62,17 @@ async def lifespan(app: FastAPI):
     group_ids = get_all_group_ids()
     logger.info(f"Loaded {len(group_ids)} group(s) across all personas")
 
-    # Init Waha client
-    _waha = waha_module.WahaClient(
-        api_url=config.WAHA_API_URL,
-        api_key=config.WAHA_API_KEY,
-        session=config.WAHA_SESSION,
-    )
-
     # Init batcher
     _batcher = MessageBatcher(on_flush=_on_batch_flush)
     _batcher.set_loop(asyncio.get_event_loop())
+
+    # Start per-persona scheduler
+    try:
+        from src import scheduler
+        await scheduler.start(waha, get_all_personas())
+        logger.info("Scheduler started")
+    except Exception as e:
+        logger.warning(f"Scheduler failed to start: {e}")
 
     logger.info(f"SuzyCloud ready on port {config.WEBHOOK_PORT}")
     logger.info(f"Allowed groups: {group_ids or 'all'}")
@@ -83,6 +80,11 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    try:
+        from src import scheduler
+        await scheduler.stop()
+    except Exception:
+        pass
     if _batcher:
         _batcher.flush_all()
     logger.info("SuzyCloud stopped")
@@ -188,7 +190,7 @@ async def webhook(request: Request):
 
 async def _on_batch_flush(group_id: str, sender: str, sender_name: str, messages: list):
     """Process a batch of messages for a persona."""
-    if not messages or not _waha:
+    if not messages:
         return
 
     # Look up persona
@@ -199,10 +201,20 @@ async def _on_batch_flush(group_id: str, sender: str, sender_name: str, messages
 
     merged = merge_batched_messages(messages)
     combined_text = merged["combined_text"]
+    first_msg_id = merged.get("first_full_message_id")
     if not combined_text:
         return
 
     logger.info(f"[{persona.name}] Processing: {combined_text[:80]}...")
+
+    # Preprocess (media enrichment)
+    try:
+        from src.pipeline import preprocess_message
+        combined_text = await preprocess_message(
+            combined_text, merged.get("media_items", []), persona
+        )
+    except Exception as e:
+        logger.warning(f"[{persona.name}] Pipeline error (continuing): {e}")
 
     # Load soul context
     from src import sessions as sessions_module
@@ -214,7 +226,7 @@ async def _on_batch_flush(group_id: str, sender: str, sender_name: str, messages
     else:
         soul_context = load_soul_context(persona, message_text=combined_text)
 
-    # Invoke Claude
+    # Invoke Claude with persona-specific model and limits
     from src import claude_runner
     try:
         result_text, new_session_id = await claude_runner.run(
@@ -227,22 +239,29 @@ async def _on_batch_flush(group_id: str, sender: str, sender_name: str, messages
         )
     except Exception as e:
         logger.error(f"[{persona.name}] Claude error: {e}")
-        await _waha.send_message(group_id, f"Sorry, I hit an error: {e}")
+        await waha.send_message(group_id, f"Sorry, I hit an error: {e}")
         return
 
     # Save session
     if new_session_id:
         await sessions_module.set_session_id(group_id, new_session_id)
 
-    # Send response
+    # Process response (directives + send)
     if result_text:
-        # Process MEMORY_SAVE directives (write to persona's memory dir)
-        result_text = _execute_memory_saves(result_text, persona)
-
-        # Chunk and send
-        chunks = _split_message(result_text)
-        for chunk in chunks:
-            await _waha.send_message(group_id, chunk)
+        try:
+            from src.response_processor import process_and_send
+            await process_and_send(
+                response_text=result_text,
+                group_id=group_id,
+                waha_client=waha,
+                persona=persona,
+                first_msg_id=first_msg_id,
+            )
+        except Exception as e:
+            logger.error(f"[{persona.name}] Response processor error: {e}")
+            # Fallback: send raw text
+            for chunk in _split_message(result_text):
+                await waha.send_message(group_id, chunk)
 
     # Log to persona's daily file
     _log_exchange(persona, sender_name, combined_text, result_text or "")

@@ -1,0 +1,27 @@
+[Unit]
+Description=SuzyCloud Backend
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=suzy
+Group=suzy
+WorkingDirectory=/home/suzy/SuzyCloud
+Environment=PATH=/home/suzy/SuzyCloud/venv/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/home/suzy/.suzycloud/.env
+ExecStart=/home/suzy/SuzyCloud/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=suzycloud
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/suzy/SuzyCloud/personas /home/suzy/SuzyCloud/data /home/suzy/SuzyCloud/media
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

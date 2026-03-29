@@ -1,0 +1,18 @@
+# SuzyCloud — Caddy reverse proxy snippet
+# Add this block to your Caddyfile (e.g. /etc/caddy/Caddyfile)
+
+suzycloud.parsec.solutions {
+    basic_auth {
+        x $2a$14$REPLACE_WITH_BCRYPT_HASH
+    }
+
+    reverse_proxy localhost:8000
+
+    log {
+        output file /var/log/caddy/suzycloud.log
+        format json
+    }
+}
+
+# Generate password hash:  caddy hash-password --plaintext 'YOUR_PASSWORD'
+# Then replace $2a$14$REPLACE_WITH_BCRYPT_HASH above.

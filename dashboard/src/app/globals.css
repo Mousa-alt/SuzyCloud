@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@theme {
+  /* -- Parsec Light Theme (matching parsec.solutions) -- */
+
+  /* Backgrounds */
+  --color-bg-primary: #F5F7FA;
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-card: #FFFFFF;
+  --color-bg-hover: #F0F2F5;
+  --color-bg-input: #F0F2F5;
+  --color-bg-sidebar: #FAFBFC;
+
+  /* Borders */
+  --color-border: #E2E8F0;
+  --color-border-light: #F1F5F9;
+  --color-border-focus: #2D4A6A;
+
+  /* Text -- dark navy from Parsec palette */
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+
+  /* Brand -- steel blue from palette */
+  --color-brand: #2D4A6A;
+  --color-brand-light: #5B7A90;
+  --color-brand-lighter: #8FA4B8;
+  --color-brand-lightest: #B8CCD9;
+
+  /* Accent -- dark navy */
+  --color-accent: #1A2744;
+  --color-accent-hover: #2D4A6A;
+  --color-accent-dark: #0F172A;
+
+  /* Purple -- secondary interactive */
+  --color-purple: #7C3AED;
+  --color-purple-light: #A78BFA;
+  --color-purple-bg: rgba(124, 58, 237, 0.08);
+
+  /* Teal -- highlight */
+  --color-teal: #14B8A6;
+  --color-teal-light: #2DD4BF;
+
+  /* Semantic */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+}
+
+/* -- Scrollbar -- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 #F1F5F9;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+::selection {
+  background-color: var(--color-brand);
+  color: white;
+}
+
+/* -- Base -- */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre {
+  font-family: var(--font-geist-mono), 'JetBrains Mono', monospace;
+}
+
+/* -- Animations -- */
+
+@keyframes fade-slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fade-slide-in 0.3s ease-out;
+}
+
+.gradient-border-top {
+  border-top: 2px solid;
+  border-image: linear-gradient(90deg, var(--color-teal), var(--color-purple)) 1;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in {
+    animation: none;
+  }
+}
