@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+venv/
+.env
+node_modules/
+.next/
+media/incoming/
+media/outgoing/
+data/*.json
+personas/*/.env
+personas/*/data/
+*.log

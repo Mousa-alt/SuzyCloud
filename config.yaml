@@ -1,0 +1,22 @@
+# SuzyCloud — Global configuration
+# Per-persona config lives in personas/{key}/config.yaml
+
+webhook:
+  port: 8000
+
+batching:
+  window_seconds: 5.0
+
+rate_limit:
+  max_per_minute: 20
+
+whisper:
+  model_size: "small"
+  device: "cpu"
+  language: "auto"
+
+gateway:
+  enabled: true
+  url: "http://localhost:3001"
+
+timezone: "Africa/Cairo"
