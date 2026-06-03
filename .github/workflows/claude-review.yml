@@ -1,0 +1,94 @@
+name: Claude Code Review
+
+# Deep automated PR reviewer, powered by Claude Opus 4.8 via the Max
+# subscription OAuth token. Runs alongside CodeRabbit for now.
+# Pinned model — do NOT remove --model.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# One review per branch at a time; cancel stale runs when new commits land.
+concurrency:
+  group: claude-review-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    # Skip draft PRs and bot-authored PRs (prevents loops, saves quota).
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude PR review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR TITLE: ${{ github.event.pull_request.title }}
+            AUTHOR: ${{ github.event.pull_request.user.login }}
+
+            Give a thorough, staff-engineer-level review. Adapt to whatever
+            stack this repo uses. CodeRabbit also runs on this PR and handles
+            style and trivial nits — your job is the DEEP review it misses.
+
+            FIRST, orient yourself:
+            - Read the PR diff (`gh pr diff`).
+            - If present, read `CLAUDE.md` / `AGENTS.md` at the repo root and
+              `tasks/lessons.md` — these encode project rules and past
+              incidents. Any regression of a documented rule/lesson is a BLOCKER.
+            - Skim `README` for stack/build context if the diff is unclear.
+
+            Then review, focusing on what matters most:
+            1. **Correctness & bugs.** Logic errors, off-by-one, null/undefined,
+               race conditions, error paths that swallow failures, broken edge
+               cases. Trace the actual control flow, don't pattern-match.
+            2. **Cross-file impact.** A change here may break callers elsewhere.
+               Find call sites of changed functions/exports and verify they
+               still hold.
+            3. **Security.** Secrets/keys committed, injection (SQL/command/
+               path traversal), SSRF in URL fetchers, missing authz on
+               endpoints, unsafe deserialization, XSS in rendered output.
+            4. **Project-rule compliance.** Anything CLAUDE.md / AGENTS.md /
+               lessons.md forbids.
+            5. **Regressions.** Will this break existing behavior? Removed
+               handling, changed defaults, altered public contracts.
+
+            DO NOT:
+            - Pile on trivial style nits (formatting, import order) — mention at
+              most one summary line if style is genuinely inconsistent.
+            - Demand tests unless a specific untested critical path changed.
+            - Rewrite working code purely for "elegance".
+            - Post a review when there are no substantive issues. In that case
+              comment exactly "No blocking concerns from Claude review." and stop.
+
+            HOW TO COMMENT:
+            - Use `mcp__github_inline_comment__create_inline_comment` for
+              line-specific issues (preferred).
+            - Use `gh pr comment` only for a short PR-level summary when needed.
+            - Be direct and terse. No preamble. Lead each issue with severity:
+              `BLOCKER:`, `MAJOR:`, `MINOR:`. Skip pure nits.
+            - Include a one-line concrete fix with each issue.
+
+            The PR branch is checked out. Start with the diff, then project
+            rule files, then dig into changed files and their call sites.
+
+          claude_args: |
+            --model claude-opus-4-8
+            --max-turns 30
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(grep:*),Bash(rg:*),Bash(find:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*)"
